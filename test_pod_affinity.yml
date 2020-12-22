@@ -1,0 +1,92 @@
+# Includes complete Jenkins configuration in order to run croc-hunter pipeline
+# To install on your own cluster, run:
+# helm --namespace jenkins --name jenkins -f ./jenkins-values.yaml install stable/jenkins
+# this file checks the forced scheduling property of kubernetes with affinity
+master:
+  image: "jenkins/jenkins"
+  tag: "2.240"
+  jenkinsUrlProtocol: "http"
+  adminUser: "jix"
+  adminPassword: "verint1!"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "256Mi"
+    limits:
+      cpu: "2000m"
+      memory: "2048Mi"
+  serviceType: ClusterIP
+  servicePort: 8080
+  podLabels: {
+    mypod : "2"
+  }
+  affinity: {
+  podAntiAffinity: {
+    requiredDuringSchedulingIgnoredDuringExecution: [
+      {
+      "labelSelector" :
+      {
+        "matchExpressions": [
+          {
+          "key" : "mypod",
+          "operator": "In",
+          "values": ["1"]
+          }
+        ]
+      },
+      topologyKey: "kubernetes.io/hostname"
+    }
+  ]
+ }
+}
+  installPlugins:
+    - pipeline-stage-view:2.13
+    - pipeline-rest-api:2.13
+    - workflow-aggregator:2.6
+    - credentials-binding:1.23
+    - git:4.2.2
+    - pipeline-github-lib:1.0
+    - blueocean:1.23.2
+    - artifactory:3.6.2
+    - swarm:3.21
+    - configuration-as-code:1.41
+    - kubernetes:1.25.7
+    - ldap:1.24
+  ingress:
+    enabled: "true"
+    apiVersion: extensions/v1beta1
+    hostName: madhumanti.jenkins.verint-commonops.com
+    annotations:
+      kubernetes.io/ingress.class: nginx-ui
+  JCasC:
+    enabled: true
+    defaultConfig: true
+    configScripts:
+      scriptapproval-settings: |
+        security:
+          scriptApproval:
+            approvedSignatures:
+              - method groovy.json.JsonSlurperClassic parseText java.lang.String
+              - new groovy.json.JsonSlurperClassic
+              - staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods leftShift java.util.Map java.util.Map
+      ldap-settings: |
+        jenkins:
+          securityRealm:
+           ldap:
+             configurations:
+             - displayNameAttributeName: "cn"
+               inhibitInferRootDN: false
+               rootDN: "dc=cicd,dc=lab,dc=local"
+               server: "ldap://ldap.lab.local ldap://ukkrb3.uklab.local"
+               userSearchBase: "ou=People"
+             disableMailAddressResolver: false
+             disableRolePrefixing: true
+             groupIdStrategy: "caseInsensitive"
+             userIdStrategy: "caseInsensitive"
+agent:
+  enabled: true
+  image: "jenkins/inbound-agent"
+  tag: "4.3-4"
+  
+serviceAccount:
+  name: madhumanti
